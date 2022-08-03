@@ -7,9 +7,10 @@ public class OrderController : ControllerBase
 {
     [Route("v1/orders")]
     [HttpPost]
-    public async Task<IActionResult> Place(Request request)
+    public async Task<IActionResult> Place(
+        [FromBody] Request request,
+        [FromServices] Handler handler)
     {
-        var handler = new Handler();
         var result = await handler.HandleAsync(request);
         return Ok(result);
     }
