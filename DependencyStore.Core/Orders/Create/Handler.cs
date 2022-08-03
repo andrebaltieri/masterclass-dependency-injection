@@ -1,99 +1,23 @@
-using Dapper;
+using DependencyStore.Core.Repositories;
+using DependencyStore.Core.Repositories.Contracts;
+using DependencyStore.Core.Services;
+using DependencyStore.Core.Services.Contracts;
 using DependencyStore.Web.Models;
-using Microsoft.Data.SqlClient;
-using RestSharp;
 
 namespace DependencyStore.Core.Orders.Create;
 
-public class CustomerRepository
-{
-    private readonly SqlConnection _connection;
-
-    public CustomerRepository(SqlConnection connection)
-        => _connection = connection;
-
-    public async Task<Customer?> GetByEmailAsync(string email)
-    {
-        const string query = "SELECT [Id], [Name], [Email] FROM CUSTOMER WHERE ID=@id";
-        return await _connection
-            .QueryFirstAsync<Customer>(query, new
-            {
-                id = email
-            });
-    }
-}
-
-public class Configuration
-{
-    public string DeliveryFeeServiceUrl { get; set; } = string.Empty;
-}
-
-public class DeliveryFeeService
-{
-    private readonly Configuration _configuration;
-
-    public DeliveryFeeService(Configuration configuration)
-        => _configuration = configuration;
-
-    public async Task<decimal> GetDeliveryFeeAsync(string zipCode)
-    {
-        decimal deliveryFee = 0;
-        var client = new RestClient(_configuration.DeliveryFeeServiceUrl);
-        var req = new RestRequest()
-            .AddJsonBody(new
-            {
-                zipCode
-            });
-        deliveryFee = await client.PostAsync<decimal>(req);
-        
-        // Nunca é menos que R$ 5,00
-        if (deliveryFee < 5)
-            deliveryFee = 5;
-
-        return deliveryFee;
-    }
-}
-
-public class ProductRepository
-{
-    private readonly SqlConnection _connection;
-
-    public ProductRepository(SqlConnection connection)
-        => _connection = connection;
-
-    public async Task<IEnumerable<Product>> GetByIdAsync(int[] ids)
-    {
-        const string getProductQuery = "SELECT [Id], [Name], [Price] FROM PRODUCT WHERE ID IN(@ids)";
-        return await _connection.QueryAsync<Product>(getProductQuery, new { Ids = ids });
-    }
-}
-
-public class PromoCodeRepository
-{
-    private readonly SqlConnection _connection;
-
-    public PromoCodeRepository(SqlConnection connection)
-        => _connection = connection;
-
-    public async Task<PromoCode?> GetAsync(string promoCode)
-    {
-        const string query = "SELECT * FROM PROMO_CODES WHERE CODE=@code";
-        return await _connection.QueryFirstAsync<PromoCode>(query, new { code = promoCode });
-    }
-}
-
 public class Handler
 {
-    private readonly CustomerRepository _customerRepository;
-    private readonly ProductRepository _productRepository;
-    private readonly PromoCodeRepository _promoCodeRepository;
-    private readonly DeliveryFeeService _deliveryFeeService;
+    private readonly ICustomerRepository _customerRepository;
+    private readonly IProductRepository _productRepository;
+    private readonly IPromoCodeRepository _promoCodeRepository;
+    private readonly IDeliveryFeeService _deliveryFeeService;
 
     public Handler(
-        CustomerRepository customerRepository,
-        ProductRepository productRepository,
-        PromoCodeRepository promoCodeRepository,
-        DeliveryFeeService deliveryFeeService)
+        ICustomerRepository customerRepository,
+        IProductRepository productRepository,
+        IPromoCodeRepository promoCodeRepository,
+        IDeliveryFeeService deliveryFeeService)
     {
         _customerRepository = customerRepository;
         _productRepository = productRepository;
@@ -108,7 +32,7 @@ public class Handler
 
         // #2 - Calcula o frete
         var deliveryFee = await _deliveryFeeService.GetDeliveryFeeAsync(request.ZipCode);
-        
+
         // #3 - Calcula o total dos produtos
         var products = await _productRepository.GetByIdAsync(request.Products);
         var subTotal = products.Sum(product => product.Price);
